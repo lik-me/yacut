@@ -1,19 +1,23 @@
-from random import randrange
+import re
+from random import choice
+from string import ascii_lowercase, ascii_uppercase, digits
+
 from flask import abort, flash, redirect, render_template
+
 from . import app, db
+from .error_handlers import ERRORS_DESCRIPTIONS
 from .forms import URLMapForm
 from .models import URLMap
-from .error_handlers import ERRORS_DESCRIPTIONS
-import re
 
-SYMBOLS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+SHORT_MAX_LEN = 7
 
 
 def url_map_generate():
     short = ""
-    for _ in range(1, 7):
-        short = short + SYMBOLS[randrange(0, len(SYMBOLS), 1)]
-    while not short_already_saved(short):
+    symbols = ascii_lowercase + ascii_uppercase + digits
+    for _ in range(1, SHORT_MAX_LEN):
+        short = short + choice(symbols)
+    while short_already_exists(short) is False:
         return url_map_generate()
     return short
 
@@ -27,21 +31,15 @@ def short_check(short):
 
 
 def short_check_len(short):
-    if len(short) > 16:
-        return False
-    return True
+    return len(short) < 16
 
 
 def original_already_saved(original):
-    if URLMap.query.filter_by(original=original).first():
-        return False
-    return True
+    return not URLMap.query.filter_by(original=original).first()
 
 
-def short_already_saved(short):
-    if URLMap.query.filter_by(short=short).first():
-        return False
-    return True
+def short_already_exists(short):
+    return not URLMap.query.filter_by(short=short).first()
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -53,18 +51,18 @@ def index_view(url_map_new=None):
         flash_msg = None
         flash_msg_cat = None
         if url_ckeck(original) is None:
-            flash_msg = 'Ведена ссылка, не отвечающая правильному формату. Повторите, пожалуйста, ввод.'
+            flash_msg = ERRORS_DESCRIPTIONS['url_format_wrong']
             flash_msg_cat = "original"
-        if not original_already_saved(original):
+        if original_already_saved(original) is False:
             flash_msg = ERRORS_DESCRIPTIONS['url_already_saved']
             flash_msg_cat = "original"
         if short != "" and short is not None and short_check(short) is None:
             flash_msg = ERRORS_DESCRIPTIONS['short_wrong']
             flash_msg_cat = "short"
-        if short != "" and short is not None and short_check_len(short) is False:
+        elif short != "" and short is not None and short_check_len(short) is False:
             flash_msg = ERRORS_DESCRIPTIONS['short_very_long']
             flash_msg_cat = "short"
-        if short != "" and not short_already_saved(short):
+        elif short != "" and short_already_exists(short) is False:
             flash_msg = ERRORS_DESCRIPTIONS['short_occupate_html'].format(short)
             flash_msg_cat = "short"
         if flash_msg is not None:

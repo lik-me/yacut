@@ -1,9 +1,13 @@
-from flask import jsonify, request
-from . import app, db
-from .error_handlers import InvalidAPIUsage, ERRORS_DESCRIPTIONS
-from .models import URLMap
-from .views import url_map_generate, url_ckeck, short_check, short_already_saved, short_check_len
 import collections
+from http import HTTPStatus
+
+from flask import jsonify, request
+
+from . import app, db
+from .error_handlers import ERRORS_DESCRIPTIONS, InvalidAPIUsage
+from .models import URLMap
+from .views import (short_already_exists, short_check, short_check_len,
+                    url_ckeck, url_map_generate)
 
 
 @app.route('/api/id/<string:short_id>/', methods=['GET'])
@@ -11,8 +15,8 @@ def get_original(short_id):
     print(f"short_id = {short_id}")
     original = URLMap.query.filter_by(short=short_id).first()
     if original is not None:
-        return jsonify({'url': original.original}), 200
-    raise InvalidAPIUsage('Указанный id не найден', 404)
+        return jsonify({'url': original.original}), HTTPStatus.OK
+    raise InvalidAPIUsage('Указанный id не найден', HTTPStatus.NOT_FOUND)
 
 
 @app.route('/api/id/', methods=['POST'])
@@ -28,8 +32,8 @@ def add_url_map():
     else:
         short = data['custom_id']
     if url_ckeck(original) is None:
-        raise InvalidAPIUsage('Ведена ссылка, не отвечающая правильному формату. Повторите, пожалуйста, ввод.')
-    if short is not None and not short_already_saved(short):
+        raise InvalidAPIUsage(ERRORS_DESCRIPTIONS['url_format_wrong'])
+    if short is not None and short_already_exists(short) is False:
         raise InvalidAPIUsage(ERRORS_DESCRIPTIONS['short_occupate_api'].format(short))
     if short is not None and short_check(short) is None:
         raise InvalidAPIUsage(ERRORS_DESCRIPTIONS['short_wrong'])
@@ -47,4 +51,4 @@ def add_url_map():
     new_record_short = new_record.short
     url_map_return['short_link'] = "http://" + str(request.host) + "/" + str(new_record_short)
     url_map_return['url'] = url_map_dict['original']
-    return jsonify(url_map_return), 201
+    return jsonify(url_map_return), HTTPStatus.CREATED
